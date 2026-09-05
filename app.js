@@ -1,10 +1,10 @@
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
-const state = { u: 3, v: 2, phase: 0, component: 'real', size: 32 };
+const state = { u: 3, v: 2, component: 'real', size: 32 };
 
 function palette(value) {
   const t = Math.max(0, Math.min(1, (value + 1) / 2));
-  const a = [5, 18, 24], b = [57, 224, 212];
+  const a = [0, 0, 0], b = [255, 255, 255];
   return a.map((x, i) => Math.round(x + (b[i] - x) * t));
 }
 
@@ -13,87 +13,120 @@ function drawBasis() {
   const off = document.createElement('canvas'); off.width = state.size; off.height = state.size;
   const o = off.getContext('2d'), image = o.createImageData(state.size, state.size);
   for (let y = 0; y < state.size; y++) for (let x = 0; x < state.size; x++) {
-    const theta = 2 * Math.PI * (state.u * x / state.size + state.v * y / state.size) + state.phase;
-    let value = state.component === 'real' ? Math.cos(theta) : state.component === 'imag' ? Math.sin(theta) : ((theta % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI) / Math.PI - 1;
-    const color = state.component === 'phase' ? phaseColor(value) : palette(value);
+    const theta = 2 * Math.PI * (state.u * x / state.size + state.v * y / state.size);
+    const value = state.component === 'real' ? Math.cos(theta) : Math.sin(theta);
+    const color = palette(value);
     const i = (y * state.size + x) * 4; image.data.set([...color, 255], i);
   }
   o.putImageData(image, 0, 0); ctx.imageSmoothingEnabled = false; ctx.clearRect(0,0,canvas.width,canvas.height); ctx.drawImage(off,0,0,canvas.width,canvas.height);
 }
-function phaseColor(v){const h=(v+1)*180;return hslToRgb(h,70,55)}
 function hslToRgb(h,s,l){s/=100;l/=100;const c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs(h/60%2-1)),m=l-c/2;let r=0,g=0,b=0;if(h<60)[r,g]=[c,x];else if(h<120)[r,g]=[x,c];else if(h<180)[g,b]=[c,x];else if(h<240)[g,b]=[x,c];else if(h<300)[r,b]=[x,c];else[r,b]=[c,x];return [r,g,b].map(n=>Math.round((n+m)*255))}
 
+function wrapFrequency(k){return ((k+16)%32+32)%32-16}
+function frequencyAt(position){return Math.max(-16,Math.min(15,Math.floor(position*32)-16))}
+function conjugateOf(p){return {u:wrapFrequency(-p.u),v:wrapFrequency(-p.v)}}
+function selfConjugate(p){const q=conjugateOf(p);return q.u===p.u&&q.v===p.v}
+
+function canvasTheme(){const light=document.body.classList.contains('light');return light?{bg:'#fafafa',grid:'#dedede',axis:'#999999',text:'#666666',point:'#333333'}:{bg:'#171717',grid:'#363636',axis:'#888888',text:'#bbbbbb',point:'#eeeeee'}}
+
 function drawFrequency() {
-  const c=$('#frequencyCanvas'),ctx=c.getContext('2d'),w=c.width,h=c.height,cell=w/17;
-  ctx.clearRect(0,0,w,h);ctx.fillStyle=getComputedStyle(document.body).getPropertyValue('--bg');ctx.fillRect(0,0,w,h);
-  ctx.strokeStyle='#29414a';ctx.lineWidth=1;
-  for(let i=0;i<17;i++){const p=(i+.5)*cell;ctx.beginPath();ctx.moveTo(p,0);ctx.lineTo(p,h);ctx.stroke();ctx.beginPath();ctx.moveTo(0,p);ctx.lineTo(w,p);ctx.stroke()}
-  const cx=8.5*cell,cy=8.5*cell;ctx.strokeStyle='#6d858c';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx,0);ctx.lineTo(cx,h);ctx.moveTo(0,cy);ctx.lineTo(w,cy);ctx.stroke();
-  drawPoint(-state.u,-state.v,'#f4b860',7);drawPoint(state.u,state.v,'#33d6d0',9);
-  ctx.fillStyle='#8ca2a9';ctx.font='12px Segoe UI';ctx.fillText('v',cx+8,14);ctx.fillText('u',w-14,cy-8);ctx.fillText('0',cx+6,cy-7);
-  function drawPoint(u,v,color,r){const x=cx+u*cell,y=cy+v*cell;ctx.shadowColor=color;ctx.shadowBlur=16;ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0}
+  const c=$('#frequencyCanvas'),ctx=c.getContext('2d'),w=c.width,h=c.height,cell=w/32;
+  ctx.clearRect(0,0,w,h);ctx.fillStyle=canvasTheme().bg;ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle=canvasTheme().grid;ctx.lineWidth=1;
+  for(let i=0;i<32;i++){const p=(i+.5)*cell;ctx.beginPath();ctx.moveTo(p,0);ctx.lineTo(p,h);ctx.stroke();ctx.beginPath();ctx.moveTo(0,p);ctx.lineTo(w,p);ctx.stroke()}
+  const cx=16.5*cell,cy=16.5*cell;ctx.strokeStyle=canvasTheme().axis;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx,0);ctx.lineTo(cx,h);ctx.moveTo(0,cy);ctx.lineTo(w,cy);ctx.stroke();
+  drawPoint(-state.u,-state.v,canvasTheme().point,3);drawPoint(state.u,state.v,canvasTheme().point,5);
+  ctx.fillStyle=canvasTheme().text;ctx.font='15px Segoe UI';ctx.fillText('v',cx+8,h-10);ctx.fillText('u',w-14,cy-8);ctx.fillText('0',cx+6,cy-7);
+  function drawPoint(u,v,color,r){const x=cx+wrapFrequency(u)*cell,y=cy+wrapFrequency(v)*cell;ctx.shadowColor=color;ctx.shadowBlur=4;ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0}
 }
 
 function updateUI(){
-  $('#uOut').value=state.u;$('#vOut').value=state.v;$('#phaseOut').value=Math.round(state.phase*180/Math.PI)+'°';
-  const radial=Math.hypot(state.u,state.v),direction=Math.atan2(state.v,state.u)*180/Math.PI,stripe=((direction+90)%180+180)%180;
-  $('#radialMetric').textContent=radial.toFixed(2);$('#angleMetric').textContent=stripe.toFixed(1)+'°';
+  $('#uOut').value=state.u;$('#vOut').value=state.v;
+  const direction=Math.atan2(state.v,state.u)*180/Math.PI;
   $('#vectorText').textContent=`(u, v) = (${state.u}, ${state.v})`;$('#orientationText').textContent=`Variation direction ${direction.toFixed(1)}° · stripes are perpendicular`;
-  const f=state.component==='real'?'cos':state.component==='imag'?'sin':'arg';$('#basisLabel').textContent=`${f}[2π(${state.u}x/M ${state.v<0?'−':'+'} ${Math.abs(state.v)}y/N) + φ]`;$('#componentBadge').textContent=state.component.toUpperCase()+' COMPONENT';
+  const f=state.component==='real'?'cos':'sin';$('#basisLabel').textContent=`${f}[2π(${state.u}x/M ${state.v<0?'−':'+'} ${Math.abs(state.v)}y/N)]`;$('#componentBadge').textContent=state.component.toUpperCase()+' COMPONENT';
   drawBasis();drawFrequency();
 }
 
 ['u','v'].forEach(k=>$('#'+k+'Range').addEventListener('input',e=>{state[k]=+e.target.value;updateUI()}));
-$('#phaseRange').addEventListener('input',e=>{state.phase=+e.target.value*Math.PI/180;updateUI()});
 $$('.seg').forEach(b=>b.addEventListener('click',()=>{$$('.seg').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.component=b.dataset.component;updateUI()}));
-$('#resetBasis').addEventListener('click',()=>{Object.assign(state,{u:3,v:2,phase:0,component:'real'});$('#uRange').value=3;$('#vRange').value=2;$('#phaseRange').value=0;$$('.seg').forEach((x,i)=>x.classList.toggle('active',i===0));updateUI()});
+$('#resetBasis').addEventListener('click',()=>{Object.assign(state,{u:3,v:2,component:'real'});$('#uRange').value=3;$('#vRange').value=2;$$('.seg').forEach((x,i)=>x.classList.toggle('active',i===0));updateUI()});
 $('#frequencyCanvas').addEventListener('pointerdown',pickFrequency);$('#frequencyCanvas').addEventListener('pointermove',e=>{if(e.buttons)pickFrequency(e)});
-function pickFrequency(e){const c=e.currentTarget,r=c.getBoundingClientRect(),x=(e.clientX-r.left)*c.width/r.width,y=(e.clientY-r.top)*c.height/r.height;state.u=Math.max(-8,Math.min(8,Math.round((x/c.width*17)-8.5)));state.v=Math.max(-8,Math.min(8,Math.round((y/c.height*17)-8.5)));$('#uRange').value=state.u;$('#vRange').value=state.v;updateUI()}
-$$('.nav-btn').forEach(b=>b.addEventListener('click',()=>{$$('.nav-btn,.lab-section').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#'+b.dataset.section).classList.add('active')}));
-$('#themeToggle').addEventListener('click',()=>document.body.classList.toggle('light'));
+function pickFrequency(e){const c=e.currentTarget,r=c.getBoundingClientRect(),x=(e.clientX-r.left)*c.width/r.width,y=(e.clientY-r.top)*c.height/r.height;state.u=frequencyAt(x/c.width);state.v=frequencyAt(y/c.height);$('#uRange').value=state.u;$('#vRange').value=state.v;updateUI()}
+$$('.nav-btn[data-section]').forEach(b=>b.addEventListener('click',()=>{$$('.nav-btn,.lab-section').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#'+b.dataset.section).classList.add('active');closeLabMenu();window.scrollTo({top:0,behavior:'instant'});$('#labMenuToggle').focus()}));
+function closeLabMenu(){ $('#labMenu').hidden=true; $('#labMenuToggle').setAttribute('aria-expanded','false'); }
+$('#labMenuToggle').onclick=()=>{const open=$('#labMenu').hidden;$('#labMenu').hidden=!open;$('#labMenuToggle').setAttribute('aria-expanded',String(open));if(open)$('#labMenu .active').focus()};
+document.addEventListener('click',e=>{if(!e.target.closest('#labMenu, #labMenuToggle'))closeLabMenu()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#labMenu').hidden){closeLabMenu();$('#labMenuToggle').focus()}});
+$('#themeToggle').addEventListener('click',()=>{const light=document.body.classList.toggle('light');$('#themeToggle').textContent=light?'☾':'☀';$('#themeToggle').setAttribute('aria-label',light?'Switch to dark theme':'Switch to light theme');drawFrequency();drawMixerFreq(mix.pairs.length)});
 updateUI();
 
 // Spectrum mixer -------------------------------------------------------------
-const mix = { amp: 1, phase: 0, pairs: [] };
+const mix = { re: 1, im: 0, pairs: [], selected: null, nextColor: 0, timer: null };
 const mixSize = 32;
-function addPair(u,v,amp=mix.amp,phase=mix.phase){
+const pairColors = ['#555555','#888888','#666666','#999999','#777777'];
+function stopBuild(){clearInterval(mix.timer);mix.timer=null;$('#playBuild').textContent='▶ Build animation'}
+function syncCoefficientControls(){
+  for(const key of ['re','im']){$('#'+key+'Range').value=mix[key];$('#'+key+'Out').value=mix[key].toFixed(2)}
+  $('#ampOut').value=Math.hypot(mix.re,mix.im).toFixed(2);
+}
+function formatCoefficient(re,im){return `${re.toFixed(2)} ${im<0?'−':'+'} ${Math.abs(im).toFixed(2)}i`}
+function selectPair(p){mix.selected=p;mix.re=p.re;mix.im=p.im;syncCoefficientControls()}
+function addPair(u,v){
   if(u===0&&v===0)return;
-  const existing=mix.pairs.find(p=>p.u===u&&p.v===v);
-  if(existing){existing.amp=amp;existing.phase=phase}else mix.pairs.push({u,v,amp,phase});
-  renderMixer();
+  stopBuild();
+  // Store the right-hand representative, or the upper point on the vertical axis.
+  const q=conjugateOf({u,v});
+  if(q.u>u||(q.u===u&&q.v<v)){u=q.u;v=q.v}
+  let p=mix.pairs.find(p=>p.u===u&&p.v===v);
+  if(!p){const index=mix.nextColor++;p={u,v,re:mix.re,im:mix.im,color:pairColors[index]||`hsl(0 0% ${35+(index*17)%30}%)`};mix.pairs.push(p)}
+  if(selfConjugate(p))p.im=0;selectPair(p);renderMixer();
 }
 function mixerValues(limit=mix.pairs.length){
   const vals=new Float32Array(mixSize*mixSize);let max=0;
   for(let y=0;y<mixSize;y++)for(let x=0;x<mixSize;x++){
-    let s=0;for(const p of mix.pairs.slice(0,limit))s+=p.amp*Math.cos(2*Math.PI*(p.u*x/mixSize+p.v*y/mixSize)+p.phase);
-    vals[y*mixSize+x]=s;max=Math.max(max,Math.abs(s));
+    let sum=0;for(const p of mix.pairs.slice(0,limit)){const theta=2*Math.PI*(p.u*x/mixSize+p.v*y/mixSize);sum+=(selfConjugate(p)?1:2)*(p.re*Math.cos(theta)-p.im*Math.sin(theta))/(mixSize*mixSize)}
+    vals[y*mixSize+x]=sum;max=Math.max(max,Math.abs(sum));
   }return {vals,max:max||1};
 }
 function renderMixer(limit=mix.pairs.length){
   const {vals,max}=mixerValues(limit),c=$('#reconCanvas'),ctx=c.getContext('2d'),off=document.createElement('canvas');off.width=off.height=mixSize;const o=off.getContext('2d'),im=o.createImageData(mixSize,mixSize);
   for(let i=0;i<vals.length;i++)im.data.set([...palette(vals[i]/max),255],i*4);o.putImageData(im,0,0);ctx.imageSmoothingEnabled=false;ctx.drawImage(off,0,0,c.width,c.height);
-  drawMixerFreq(limit);drawWave(vals,max);$('#mixCount').textContent=`${limit} coefficient pair${limit===1?'':'s'} · ${limit*2} spectral points`;renderCoefficientList();
+  drawMixerFreq(limit);$('#mixCount').textContent=`${limit} coefficient pair${limit===1?'':'s'} · ${mix.pairs.slice(0,limit).reduce((n,p)=>n+(selfConjugate(p)?1:2),0)} spectral points`;renderCoefficientList();
+  syncCoefficientControls();
+  const p=mix.selected;$('#conjugateCoefficient').textContent=p?`F(${conjugateOf(p).u}, ${conjugateOf(p).v}) = ${formatCoefficient(p.re,-p.im)}`:'';$('#selectedCoefficient').textContent=p?`F(${p.u}, ${p.v}) = ${formatCoefficient(p.re,p.im)}`:'Select a pair to inspect F(u,v).';
 }
-function drawMixerFreq(limit){const c=$('#mixerFreqCanvas'),ctx=c.getContext('2d'),cell=c.width/17,cx=8.5*cell,cy=8.5*cell;ctx.fillStyle='#071116';ctx.fillRect(0,0,c.width,c.height);ctx.strokeStyle='#223940';ctx.lineWidth=1;for(let i=0;i<17;i++){let p=(i+.5)*cell;ctx.beginPath();ctx.moveTo(p,0);ctx.lineTo(p,c.height);ctx.stroke();ctx.beginPath();ctx.moveTo(0,p);ctx.lineTo(c.width,p);ctx.stroke()}ctx.strokeStyle='#668087';ctx.beginPath();ctx.moveTo(cx,0);ctx.lineTo(cx,c.height);ctx.moveTo(0,cy);ctx.lineTo(c.width,cy);ctx.stroke();mix.pairs.slice(0,limit).forEach(p=>{point(p.u,p.v,'#33d6d0',p.amp);point(-p.u,-p.v,'#f4b860',p.amp)});function point(u,v,col,a){ctx.fillStyle=col;ctx.globalAlpha=.5+Math.min(1,a)/2;ctx.beginPath();ctx.arc(cx+u*cell,cy+v*cell,5+3*a,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}}
-function drawWave(vals,max){const c=$('#waveCanvas'),ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);ctx.strokeStyle='#29414a';ctx.beginPath();ctx.moveTo(0,c.height/2);ctx.lineTo(c.width,c.height/2);ctx.stroke();ctx.strokeStyle='#33d6d0';ctx.lineWidth=2;ctx.beginPath();for(let x=0;x<mixSize;x++){const px=x/(mixSize-1)*c.width,py=c.height/2-vals[16*mixSize+x]/max*c.height*.38;x?ctx.lineTo(px,py):ctx.moveTo(px,py)}ctx.stroke()}
-function renderCoefficientList(){const el=$('#coefficientList');if(!mix.pairs.length){el.innerHTML='<div class="empty-state">No frequencies yet</div>';return}el.innerHTML=mix.pairs.map((p,i)=>`<div class="coefficient-item"><b>(${p.u}, ${p.v}) &amp; (${-p.u}, ${-p.v})</b><button data-remove="${i}" aria-label="remove">×</button><span>A ${p.amp.toFixed(2)} · φ ${Math.round(p.phase*180/Math.PI)}°</span></div>`).join('');el.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{mix.pairs.splice(+b.dataset.remove,1);renderMixer()})}
-$('#ampRange').oninput=e=>{$('#ampOut').value=(mix.amp=+e.target.value).toFixed(2)};$('#mixPhaseRange').oninput=e=>{$('#mixPhaseOut').value=e.target.value+'°';mix.phase=+e.target.value*Math.PI/180};
-$('#mixerFreqCanvas').addEventListener('click',e=>{const c=e.currentTarget,r=c.getBoundingClientRect(),u=Math.max(-8,Math.min(8,Math.round((e.clientX-r.left)/r.width*17-8.5))),v=Math.max(-8,Math.min(8,Math.round((e.clientY-r.top)/r.height*17-8.5)));addPair(u,v)});
-$('#clearMixer').onclick=()=>{mix.pairs=[];renderMixer()};
-$$('.preset-btn').forEach(b=>b.onclick=()=>{const sets={vertical:[[4,0,1,0]],diagonal:[[3,3,1,0]],grid:[[4,0,1,0],[0,4,1,0]],texture:[[2,1,1,0],[4,-2,.7,.7],[0,6,.45,1.2],[-5,-3,.35,2.1]]};mix.pairs=sets[b.dataset.preset].map(([u,v,amp,ph])=>({u,v,amp,phase:ph}));renderMixer()});
-$('#playBuild').onclick=()=>{let i=0;if(!mix.pairs.length){mix.pairs=[{u:2,v:1,amp:1,phase:0},{u:4,v:-2,amp:.7,phase:.7},{u:0,v:6,amp:.45,phase:1.2}]}const timer=setInterval(()=>{renderMixer(i++);if(i>mix.pairs.length)clearInterval(timer)},450)};
+function drawMixerFreq(limit){
+  const c=$('#mixerFreqCanvas'),ctx=c.getContext('2d'),cell=c.width/32,cx=16.5*cell,cy=16.5*cell;
+  ctx.fillStyle=canvasTheme().bg;ctx.fillRect(0,0,c.width,c.height);ctx.strokeStyle=canvasTheme().grid;ctx.lineWidth=1;
+  for(let i=0;i<32;i++){const p=(i+.5)*cell;ctx.beginPath();ctx.moveTo(p,0);ctx.lineTo(p,c.height);ctx.moveTo(0,p);ctx.lineTo(c.width,p);ctx.stroke()}
+  ctx.strokeStyle=canvasTheme().axis;ctx.beginPath();ctx.moveTo(cx,0);ctx.lineTo(cx,c.height);ctx.moveTo(0,cy);ctx.lineTo(c.width,cy);ctx.stroke();
+  ctx.fillStyle=canvasTheme().text;ctx.font='15px Segoe UI';ctx.fillText('u',c.width-16,cy-8);ctx.fillText('v',cx+8,c.height-10);ctx.fillText('0',cx+6,cy-7);
+  mix.pairs.slice(0,limit).forEach(p=>{point(-p.u,-p.v,p,3);point(p.u,p.v,p,5);if(p===mix.selected){ctx.strokeStyle=p.color;ctx.lineWidth=1;ctx.beginPath();ctx.arc(cx+p.u*cell,cy+p.v*cell,5.5,0,Math.PI*2);ctx.stroke()}});
+  function point(u,v,p,r){ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(cx+wrapFrequency(u)*cell,cy+wrapFrequency(v)*cell,r,0,Math.PI*2);ctx.fill()}
+}
+function renderCoefficientList(){
+  const el=$('#coefficientList');if(!mix.pairs.length){el.innerHTML='<div class="empty-state">No frequencies yet</div>';return}
+  el.innerHTML=mix.pairs.map((p,i)=>`<div class="coefficient-item ${p===mix.selected?'selected':''}" style="--pair-color:${p.color}"><button class="pair-select" data-select="${i}" aria-pressed="${p===mix.selected}"><b>(${p.u}, ${p.v}) &amp; (${conjugateOf(p).u}, ${conjugateOf(p).v})</b><span>F(${p.u}, ${p.v}) = ${formatCoefficient(p.re,p.im)}</span></button><button data-remove="${i}" aria-label="Remove pair (${p.u}, ${p.v})">×</button></div>`).join('');
+  el.querySelectorAll('[data-select]').forEach(b=>b.onclick=()=>{stopBuild();selectPair(mix.pairs[+b.dataset.select]);renderMixer()});
+  el.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{stopBuild();const [removed]=mix.pairs.splice(+b.dataset.remove,1);if(removed===mix.selected){mix.selected=null;if(mix.pairs.length)selectPair(mix.pairs[mix.pairs.length-1])}renderMixer()});
+}
+['re','im'].forEach(key=>$('#'+key+'Range').oninput=e=>{stopBuild();mix[key]=+e.target.value;if(mix.selected){mix.selected[key]=mix[key];if(selfConjugate(mix.selected)){mix.selected.im=0;mix.im=0}}renderMixer()});
+$('#mixerFreqCanvas').addEventListener('click',e=>{const c=e.currentTarget,r=c.getBoundingClientRect(),u=frequencyAt((e.clientX-r.left)/r.width),v=frequencyAt((e.clientY-r.top)/r.height);addPair(u,v)});
+$('#clearMixer').onclick=()=>{stopBuild();mix.pairs=[];mix.selected=null;mix.nextColor=0;renderMixer()};
+$('#playBuild').onclick=()=>{stopBuild();if(!mix.pairs.length)return;let i=0;renderMixer(0);$('#playBuild').textContent='Building…';mix.timer=setInterval(()=>{renderMixer(++i);if(i>=mix.pairs.length)stopBuild()},450)};
 renderMixer();
 
 // Filter studio --------------------------------------------------------------
-const N=32;let filterKind='ideal-low',cutoff=6,source=makeTestImage(),spectrum=null;
+const N=32;let filterKind='ideal-low',cutoff=6,innerDiameter=22,outerDiameter=40,source=makeTestImage(),spectrum=null;
 const trig=Array.from({length:N},(_,k)=>Array.from({length:N},(_,n)=>({c:Math.cos(2*Math.PI*k*n/N),s:Math.sin(2*Math.PI*k*n/N)})));
 function makeTestImage(){const a=new Float32Array(N*N);for(let y=0;y<N;y++)for(let x=0;x<N;x++){let v=35+2.5*x+1.5*y;if(x>5&&x<15&&y>6&&y<25)v+=120;if((x-23)**2+(y-11)**2<35)v+=135;if(Math.abs(y-25)<2)v+=100;v+=18*Math.sin(2*Math.PI*(7*x/N+5*y/N));a[y*N+x]=Math.max(0,Math.min(255,v))}return a}
 function dft2(input,inverse=false){const tmp=Array.from({length:N*N},()=>[0,0]),out=Array.from({length:N*N},()=>[0,0]),sign=inverse?1:-1;for(let y=0;y<N;y++)for(let u=0;u<N;u++){let re=0,im=0;for(let x=0;x<N;x++){const val=Array.isArray(input[y*N+x])?input[y*N+x]:[input[y*N+x],0],t=trig[u][x],si=sign*t.s;re+=val[0]*t.c-val[1]*si;im+=val[0]*si+val[1]*t.c}tmp[y*N+u]=[re,im]}for(let v=0;v<N;v++)for(let u=0;u<N;u++){let re=0,im=0;for(let y=0;y<N;y++){const val=tmp[y*N+u],t=trig[v][y],si=sign*t.s;re+=val[0]*t.c-val[1]*si;im+=val[0]*si+val[1]*t.c}out[v*N+u]=inverse?[re/(N*N),im/(N*N)]:[re,im]}return out}
-function maskAt(u,v){const du=Math.min(u,N-u),dv=Math.min(v,N-v),d=Math.hypot(du,dv);if(filterKind==='ideal-low')return d<=cutoff?1:0;if(filterKind==='gaussian-low')return Math.exp(-(d*d)/(2*cutoff*cutoff));if(filterKind==='ideal-high')return d<=cutoff?0:1;if(filterKind==='gaussian-high')return 1-Math.exp(-(d*d)/(2*cutoff*cutoff));return d>=cutoff*.55&&d<=cutoff?1:0}
+function maskAt(u,v){const du=Math.min(u,N-u),dv=Math.min(v,N-v),d=Math.hypot(du,dv);if(filterKind==='ideal-low')return d<=cutoff?1:0;if(filterKind==='gaussian-low')return Math.exp(-(d*d)/(2*cutoff*cutoff));if(filterKind==='ideal-high')return d<=cutoff?0:1;if(filterKind==='gaussian-high')return 1-Math.exp(-(d*d)/(2*cutoff*cutoff));const inner=innerDiameter/2,outer=outerDiameter/2;if(filterKind==='gaussian-band')return Math.exp(-d*d/(2*outer*outer))-Math.exp(-d*d/(2*inner*inner));return d>=inner&&d<=outer?1:0}
 function grayCanvas(canvas,values,normalize=false,log=false){const ctx=canvas.getContext('2d'),off=document.createElement('canvas');off.width=off.height=N;const o=off.getContext('2d'),im=o.createImageData(N,N);let arr=values.map?values.map((v)=>Array.isArray(v)?Math.hypot(v[0],v[1]):v):values;if(log)arr=arr.map(v=>Math.log1p(v));let min=normalize?Math.min(...arr):0,max=normalize?Math.max(...arr):255;for(let y=0;y<N;y++)for(let x=0;x<N;x++){const sx=log?(x+N/2)%N:x,sy=log?(y+N/2)%N:y,val=arr[sy*N+sx],g=Math.round(Math.max(0,Math.min(255,(val-min)/(max-min||1)*255))),i=(y*N+x)*4;im.data.set([g,g,g,255],i)}o.putImageData(im,0,0);ctx.imageSmoothingEnabled=false;ctx.drawImage(off,0,0,canvas.width,canvas.height)}
 function renderFilter(){spectrum=dft2(source);const masked=spectrum.map((z,i)=>{const m=maskAt(i%N,Math.floor(i/N));return[z[0]*m,z[1]*m]}),result=dft2(masked,true).map(z=>z[0]),mask=new Float32Array(N*N);for(let i=0;i<mask.length;i++)mask[i]=maskAt(i%N,Math.floor(i/N))*255;grayCanvas($('#sourceCanvas'),source);grayCanvas($('#sourceSpectrumCanvas'),spectrum,true,true);grayCanvas($('#maskCanvas'),mask,true,true);grayCanvas($('#resultCanvas'),result);updateFilterCopy()}
-function updateFilterCopy(){const names={'ideal-low':'ideal LPF','gaussian-low':'Gaussian LPF','ideal-high':'ideal HPF','gaussian-high':'Gaussian HPF','band-pass':'band-pass'};$('#maskLabel').textContent=names[filterKind];const ideal=filterKind.startsWith('ideal'),high=filterKind.includes('high'),band=filterKind==='band-pass';$('#filterInsightTitle').textContent=band?'Keep one frequency band':high?'High frequencies → details':ideal?'Hard cutoff → ringing':'Smooth cutoff → less ringing';$('#filterInsight').textContent=band?'A band-pass filter preserves a limited range of scales, revealing textures and edges of a particular width.':high?'Once the central low frequencies are suppressed, smooth brightness trends disappear and the remaining response mainly contains edges, detail, and noise.':ideal?'An ideal low-pass filter has an abrupt frequency boundary. Its spatial counterpart is a sinc with side lobes, so ringing appears near edges.':'A Gaussian mask changes smoothly near the cutoff. Its spatial response has no prominent side lobes, producing more natural blur with less ringing.'}
-$$('.filter-type').forEach(b=>b.onclick=()=>{$$('.filter-type').forEach(x=>x.classList.remove('active'));b.classList.add('active');filterKind=b.dataset.filter;renderFilter()});
+function updateFilterCopy(){const names={'ideal-low':'ideal LPF','gaussian-low':'Gaussian LPF','ideal-high':'ideal HPF','gaussian-high':'Gaussian HPF','ideal-band':'Ideal BPF','gaussian-band':'Gaussian BPF'};$('#maskLabel').textContent=names[filterKind];const ideal=filterKind.startsWith('ideal'),high=filterKind.includes('high'),band=filterKind.endsWith('-band');$('#singleCutoffControl').hidden=band;$('#bandCutoffControls').hidden=!band;$('#filterInsightTitle').textContent=band?'Keep one frequency band':high?'High frequencies → details':ideal?'Hard cutoff → ringing':'Smooth cutoff → less ringing';$('#filterInsight').textContent=band?(ideal?'Ideal band-pass retains the annulus Dᵢ/2 ≤ D ≤ Dₒ/2. Adjust the inner and outer diameters independently.':'Gaussian band-pass uses the difference of two Gaussians (σᵢ = Dᵢ/2, σₒ = Dₒ/2). The diameter controls set their scales; boundaries are smooth.'):high?'Once the central low frequencies are suppressed, smooth brightness trends disappear and the remaining response mainly contains edges, detail, and noise.':ideal?'An ideal low-pass filter has an abrupt frequency boundary. Its spatial counterpart is a sinc with side lobes, so ringing appears near edges.':'A Gaussian mask changes smoothly near the cutoff. Its spatial response has no prominent side lobes, producing more natural blur with less ringing.'}
+
 $('#cutoffRange').oninput=e=>{$('#cutoffOut').value=cutoff=+e.target.value;renderFilter()};$('#resetImage').onclick=()=>{source=makeTestImage();renderFilter()};
 $('#imageUpload').onchange=e=>{const file=e.target.files[0];if(!file)return;const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=c.height=N;const ctx=c.getContext('2d');ctx.drawImage(img,0,0,N,N);const data=ctx.getImageData(0,0,N,N).data;source=new Float32Array(N*N);for(let i=0;i<source.length;i++)source[i]=.2126*data[i*4]+.7152*data[i*4+1]+.0722*data[i*4+2];renderFilter();URL.revokeObjectURL(img.src)};img.src=URL.createObjectURL(file)};
 renderFilter();
@@ -104,11 +137,11 @@ function makeFilterImage1024(){const a=new Float32Array(FILTER_N*FILTER_N);for(l
 function fftLine(re,im,offset,stride,n,inverse){for(let i=1,j=0;i<n;i++){let bit=n>>1;for(;j&bit;bit>>=1)j^=bit;j^=bit;if(i<j){const a=offset+i*stride,b=offset+j*stride,tr=re[a],ti=im[a];re[a]=re[b];im[a]=im[b];re[b]=tr;im[b]=ti}}for(let len=2;len<=n;len<<=1){const ang=(inverse?2:-2)*Math.PI/len,wlr=Math.cos(ang),wli=Math.sin(ang);for(let start=0;start<n;start+=len){let wr=1,wi=0;for(let j=0;j<len/2;j++){const a=offset+(start+j)*stride,b=offset+(start+j+len/2)*stride,br=re[b]*wr-im[b]*wi,bi=re[b]*wi+im[b]*wr,ar=re[a],ai=im[a];re[a]=ar+br;im[a]=ai+bi;re[b]=ar-br;im[b]=ai-bi;const nw=wr*wlr-wi*wli;wi=wr*wli+wi*wlr;wr=nw}}}if(inverse)for(let i=0;i<n;i++){const p=offset+i*stride;re[p]/=n;im[p]/=n}}
 function fft2Large(re,im,inverse=false){for(let y=0;y<FILTER_N;y++)fftLine(re,im,y*FILTER_N,1,FILTER_N,inverse);for(let x=0;x<FILTER_N;x++)fftLine(re,im,x,FILTER_N,FILTER_N,inverse)}
 function computeFilterSpectrum(){const re=new Float32Array(filterSource1024),im=new Float32Array(re.length);fft2Large(re,im);filterSpectrum1024={re,im}}
-function mask1024(u,v){const du=Math.min(u,FILTER_N-u),dv=Math.min(v,FILTER_N-v),d=Math.hypot(du,dv);if(filterKind==='ideal-low')return d<=cutoff?1:0;if(filterKind==='gaussian-low')return Math.exp(-(d*d)/(2*cutoff*cutoff));if(filterKind==='ideal-high')return d<=cutoff?0:1;if(filterKind==='gaussian-high')return 1-Math.exp(-(d*d)/(2*cutoff*cutoff));return d>=cutoff*.55&&d<=cutoff?1:0}
+function mask1024(u,v){const du=Math.min(u,FILTER_N-u),dv=Math.min(v,FILTER_N-v),d=Math.hypot(du,dv);if(filterKind==='ideal-low')return d<=cutoff?1:0;if(filterKind==='gaussian-low')return Math.exp(-(d*d)/(2*cutoff*cutoff));if(filterKind==='ideal-high')return d<=cutoff?0:1;if(filterKind==='gaussian-high')return 1-Math.exp(-(d*d)/(2*cutoff*cutoff));const inner=innerDiameter/2,outer=outerDiameter/2;if(filterKind==='gaussian-band')return Math.exp(-d*d/(2*outer*outer))-Math.exp(-d*d/(2*inner*inner));return d>=inner&&d<=outer?1:0}
 function paintLarge(canvas,values,shift=false,log=false,normalize=false){const ctx=canvas.getContext('2d'),im=ctx.createImageData(FILTER_N,FILTER_N);let max=normalize?0:255;if(normalize)for(let i=0;i<values.length;i++){const q=log?Math.log1p(values[i]):values[i];if(q>max)max=q}for(let y=0;y<FILTER_N;y++)for(let x=0;x<FILTER_N;x++){const sx=shift?(x+FILTER_N/2)%FILTER_N:x,sy=shift?(y+FILTER_N/2)%FILTER_N:y,q0=values[sy*FILTER_N+sx],q=log?Math.log1p(q0):q0,g=Math.round(Math.max(0,Math.min(255,normalize?q/(max||1)*255:q))),i=(y*FILTER_N+x)*4;im.data[i]=im.data[i+1]=im.data[i+2]=g;im.data[i+3]=255}ctx.putImageData(im,0,0)}
 function paintSignedLarge(canvas,values){const samples=[];for(let i=0;i<values.length;i+=64)samples.push(Math.abs(values[i]));samples.sort((a,b)=>a-b);const limit=samples[Math.floor(samples.length*.995)]||1,scale=112/limit,ctx=canvas.getContext('2d'),im=ctx.createImageData(FILTER_N,FILTER_N);for(let i=0;i<values.length;i++){const g=Math.round(Math.max(0,Math.min(255,128+values[i]*scale))),p=i*4;im.data[p]=im.data[p+1]=im.data[p+2]=g;im.data[p+3]=255}ctx.putImageData(im,0,0)}
-function renderFilter1024(recompute=false){const badge=$('#filterResolution');badge.classList.add('busy');badge.textContent='PROCESSING 256²…';clearTimeout(filterJob);filterJob=setTimeout(()=>{if(recompute||!filterSpectrum1024)computeFilterSpectrum();const count=FILTER_N*FILTER_N,mag=new Float32Array(count),mask=new Float32Array(count),re=new Float32Array(filterSpectrum1024.re),im=new Float32Array(filterSpectrum1024.im);for(let i=0;i<count;i++){mag[i]=Math.hypot(re[i],im[i]);const m=mask1024(i%FILTER_N,Math.floor(i/FILTER_N));mask[i]=m*255;re[i]*=m;im[i]*=m}fft2Large(re,im,true);paintLarge($('#sourceCanvas'),filterSource1024);paintLarge($('#sourceSpectrumCanvas'),mag,true,true,true);paintLarge($('#maskCanvas'),mask,true);const signed=filterKind.includes('high')||filterKind==='band-pass';signed?paintSignedLarge($('#resultCanvas'),re):paintLarge($('#resultCanvas'),re);$('#resultModeLabel').textContent=signed?'zero response = middle grey':'256×256 g(x,y)';updateFilterCopy();badge.classList.remove('busy');badge.textContent='256 × 256 FFT'},30)}
-$$('.filter-type').forEach(b=>b.onclick=()=>{$$('.filter-type').forEach(x=>x.classList.remove('active'));b.classList.add('active');filterKind=b.dataset.filter;renderFilter1024()});$('#cutoffRange').oninput=e=>{$('#cutoffOut').value=cutoff=+e.target.value;renderFilter1024()};$('#resetImage').onclick=()=>{filterSource1024=makeFilterImage1024();renderFilter1024(true)};$('#imageUpload').onchange=e=>{const file=e.target.files[0];if(!file)return;const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=c.height=FILTER_N;const q=c.getContext('2d'),scale=Math.max(FILTER_N/img.width,FILTER_N/img.height),w=img.width*scale,h=img.height*scale;q.drawImage(img,(FILTER_N-w)/2,(FILTER_N-h)/2,w,h);const d=q.getImageData(0,0,FILTER_N,FILTER_N).data;filterSource1024=new Float32Array(FILTER_N*FILTER_N);for(let i=0;i<filterSource1024.length;i++)filterSource1024[i]=.2126*d[i*4]+.7152*d[i*4+1]+.0722*d[i*4+2];URL.revokeObjectURL(img.src);renderFilter1024(true)};img.src=URL.createObjectURL(file)};cutoff=20;$('[data-section="filter"]').addEventListener('click',()=>{if(!filterSpectrum1024)renderFilter1024(true)});
+function renderFilter1024(recompute=false){const badge=$('#filterResolution');badge.classList.add('busy');badge.textContent='PROCESSING 256²…';clearTimeout(filterJob);filterJob=setTimeout(()=>{if(recompute||!filterSpectrum1024)computeFilterSpectrum();const count=FILTER_N*FILTER_N,mag=new Float32Array(count),mask=new Float32Array(count),re=new Float32Array(filterSpectrum1024.re),im=new Float32Array(filterSpectrum1024.im);for(let i=0;i<count;i++){mag[i]=Math.hypot(re[i],im[i]);const m=mask1024(i%FILTER_N,Math.floor(i/FILTER_N));mask[i]=m*255;re[i]*=m;im[i]*=m}fft2Large(re,im,true);paintLarge($('#sourceCanvas'),filterSource1024);paintLarge($('#sourceSpectrumCanvas'),mag,true,true,true);paintLarge($('#maskCanvas'),mask,true);const signed=filterKind.includes('high')||filterKind.endsWith('-band');signed?paintSignedLarge($('#resultCanvas'),re):paintLarge($('#resultCanvas'),re);$('#resultModeLabel').textContent=signed?'zero response = middle grey':'256×256 g(x,y)';updateFilterCopy();badge.classList.remove('busy');badge.textContent='256 × 256 FFT'},30)}
+$('#cutoffRange').oninput=e=>{$('#cutoffOut').value=cutoff=+e.target.value;renderFilter1024()};$('#resetImage').onclick=()=>{filterSource1024=makeFilterImage1024();renderFilter1024(true)};$('#imageUpload').onchange=e=>{const file=e.target.files[0];if(!file)return;const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=c.height=FILTER_N;const q=c.getContext('2d'),scale=Math.max(FILTER_N/img.width,FILTER_N/img.height),w=img.width*scale,h=img.height*scale;q.drawImage(img,(FILTER_N-w)/2,(FILTER_N-h)/2,w,h);const d=q.getImageData(0,0,FILTER_N,FILTER_N).data;filterSource1024=new Float32Array(FILTER_N*FILTER_N);for(let i=0;i<filterSource1024.length;i++)filterSource1024[i]=.2126*d[i*4]+.7152*d[i*4+1]+.0722*d[i*4+2];URL.revokeObjectURL(img.src);renderFilter1024(true)};img.src=URL.createObjectURL(file)};cutoff=20;$('[data-section="filter"]').addEventListener('click',()=>{if(!filterSpectrum1024)renderFilter1024(true)});
 
 if(false){
 // Previous integrated prototype (kept inert during the dual-view redesign).
@@ -171,3 +204,24 @@ function updateDualReadouts(){$('#leftState').textContent=dual.split?'1024 basis
 function updateRelation(){const col=$('.relation-column');col.classList.remove('matched','mismatch');const right=`(${dualSigned(dual.rightU)}, ${dualSigned(dual.rightV)})`;$('#relationRight').textContent='right: '+right;if(dual.leftSelected===null){$('#relationLeft').textContent='left: —';$('#relationStatus').textContent='WAITING FOR LEFT LAYER';$('#relationTitle').textContent='Split the image and select a layer';$('#relationText').textContent='The right side is showing basis '+right+'. Select one of the 1024 layers on the left to compare them.';return}const lu=dual.leftSelected%N,lv=Math.floor(dual.leftSelected/N),left=`(${dualSigned(lu)}, ${dualSigned(lv)})`,match=lu===dual.rightU&&lv===dual.rightV;$('#relationLeft').textContent='left: '+left;$('#relationStatus').textContent=match?'EXACT BASIS MATCH':'DIFFERENT FREQUENCIES';$('#relationTitle').textContent=match?'The two sides are the same layer':'These are two different basis layers';$('#relationText').textContent=match?`F${right} sets the magnitude and phase of this left layer, while a${right} sets its stripe pattern.`:`The left side has ${left}; the right side has ${right}. Select the matching frequency or choose another left layer.`;col.classList.add(match?'matched':'mismatch')}
 $('#splitImage').onclick=()=>{dual.split=!dual.split;if(!dual.split)dual.leftSelected=null;$('#splitImage').textContent=dual.split?'Combine image':'Split into 1024 basis layers';drawLeftScene();updateDualReadouts();updateRelation()};$('#decompUpload').onchange=e=>loadDualImage(e.target.files[0]);$('#decompSample').onclick=()=>{dual.image=makeTestImage();prepareDual()};$('#rightTopView').onclick=()=>{dual.rightYaw=0;dual.rightPitch=0;drawRightScene()};$('#resetDualView').onclick=()=>{dual.leftYaw=dual.rightYaw=-.48;dual.leftPitch=.48;dual.rightPitch=.56;drawDual()};prepareDual();
 }
+
+$$('.filter-type').forEach(b=>b.onclick=()=>{
+  const key=b.dataset.pass?'pass':'profile';
+  $$(`[data-${key}]`).forEach(x=>{const active=x===b;x.classList.toggle('active',active);x.setAttribute('aria-pressed',String(active))});
+  filterKind=$('[data-profile].active').dataset.profile+'-'+$('[data-pass].active').dataset.pass;
+  renderFilter1024();
+});
+
+function updateBandDiameter(key,value){
+  if(key==='inner')innerDiameter=Math.max(2,Math.min(outerDiameter-2,value));
+  else outerDiameter=Math.min(256,Math.max(innerDiameter+2,value));
+  $('#innerDiameterRange').value=innerDiameter;$('#innerDiameterOut').value=innerDiameter;
+  $('#outerDiameterRange').value=outerDiameter;$('#outerDiameterOut').value=outerDiameter;
+  renderFilter1024();
+}
+for(const key of ['inner','outer'])$('#'+key+'DiameterRange').oninput=e=>updateBandDiameter(key,+e.target.value);
+
+$('#aboutButton').onclick=()=>{closeLabMenu();$('#aboutDialog').showModal()};
+$('#closeAbout').onclick=()=>$('#aboutDialog').close();
+$('#aboutDialog').addEventListener('click',e=>{if(e.target!==e.currentTarget)return;const r=e.currentTarget.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.currentTarget.close()});
+$('#aboutDialog').addEventListener('close',()=>$('#labMenuToggle').focus());
