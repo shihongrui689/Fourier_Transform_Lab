@@ -1,0 +1,30 @@
+# Generated and temporary files
+tmp/
+temp/
+*.tmp
+*.log
+
+# Local development servers and caches
+.cache/
+.parcel-cache/
+.vite/
+node_modules/
+dist/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Editor settings
+.idea/
+.vscode/
+*.code-workspace
+*.swp
+*.swo
+
+# Operating system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+

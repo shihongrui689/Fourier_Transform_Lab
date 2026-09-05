@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fourier Lab - Interactive 2D Fourier Transform Laboratory</title>
+  <meta name="description" content="Explore 2D Fourier transforms through basis images, interactive spectra, and frequency-domain filtering." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#basis" aria-label="Fourier Lab home">
+        <span class="brand-mark">Σ</span>
+        <span><b>Fourier Lab</b><small>SEE THE FREQUENCY</small></span>
+      </a>
+      <nav aria-label="Experiment navigation">
+        <button class="nav-btn active" data-section="basis">Basis Explorer</button>
+        <button class="nav-btn" data-section="spectrum">Spectrum Mixer</button>
+        <button class="nav-btn" data-section="filter">Filter Studio</button>
+      </nav>
+      <button id="themeToggle" class="icon-btn" aria-label="Toggle light and dark theme">☀</button>
+    </header>
+
+    <main>
+      <section id="decomposition" class="lab-section" aria-labelledby="decomp-title" hidden>
+        <div class="section-heading compact-heading"><div><span class="eyebrow">INTEGRATED LAB</span><h1 id="decomp-title">Image ↔ Spectrum</h1></div><p>Decompose the image on the left, select a frequency on the right, and connect matching basis layers in the middle.</p></div>
+        <div class="dual-toolbar card">
+          <div><label class="upload-btn primary-upload">Upload image<input id="decompUpload" type="file" accept="image/*" hidden /></label><button id="decompSample" class="text-btn">Use test image</button></div>
+          <div class="toolbar-guide"><span>SPATIAL DOMAIN</span><i>↔</i><span>FREQUENCY DOMAIN</span></div>
+          <button id="resetDualView" class="tool-btn">Reset both views</button>
+        </div>
+        <div class="dual-lab">
+          <section class="card domain-card left-domain">
+            <div class="domain-head"><div><span class="step-chip">01</span><div><b>Uploaded image</b><small>drag to rotate · click layer after splitting</small></div></div><button id="splitImage" class="primary-action">Split into 1024 basis layers</button></div>
+            <canvas id="leftScene" width="700" height="640" aria-label="3D view of the image and all basis layers"></canvas>
+            <div class="domain-readout"><span><small>STATE</small><b id="leftState">combined image</b></span><span><small>SELECTED LEFT LAYER</small><b id="leftLayerUV">none</b></span><span><small>GREY RANGE</small><b>0 — 255</b></span></div>
+          </section>
+
+          <aside class="relation-column">
+            <div class="relation-line"><span id="relationDotLeft"></span><i></i><span id="relationDotRight"></span></div>
+            <div class="relation-card card" id="relationCard">
+              <span class="relation-status" id="relationStatus">WAITING FOR TWO SELECTIONS</span>
+              <b id="relationTitle">Select one layer on each side</b>
+              <div class="relation-equation"><span id="relationLeft">left: —</span><i>⇄</i><span id="relationRight">right: —</span></div>
+              <p id="relationText">Split and select a layer on the left, then select a frequency (u,v) on the right.</p>
+            </div>
+          </aside>
+
+          <section class="card domain-card right-domain">
+            <div class="domain-head"><div><span class="step-chip">02</span><div><b>3D spectrum &amp; basis</b><small>drag to rotate · click any spectrum peak</small></div></div><button id="rightTopView" class="tool-btn">Top view</button></div>
+            <canvas id="rightScene" width="700" height="640" aria-label="3D spectrum and its corresponding basis image"></canvas>
+            <div class="domain-readout"><span><small>SELECTED FREQUENCY</small><b id="rightUV">(u, v) = (0, 0)</b></span><span><small>MAGNITUDE</small><b id="rightMagnitude">0</b></span><span><small>PHASE</small><b id="rightPhase">0°</b></span></div>
+          </section>
+        </div>
+        <div class="dual-legend card"><span><i class="legend-image"></i>uploaded image plane</span><span><i class="legend-layers"></i>all 1024 coefficient layers</span><span><i class="legend-spectrum"></i>3D magnitude spectrum</span><span><i class="legend-basis"></i>selected basis image below spectrum</span><p>A 32×32 image can be described by 1024 grey levels or by 1024 basis layers, each with a magnitude and phase.</p></div>
+      </section>
+
+      <section id="basis" class="lab-section active" aria-labelledby="basis-title">
+        <div class="section-heading">
+          <div><span class="eyebrow">EXPERIMENT 01</span><h1 id="basis-title">Basis Function Explorer</h1></div>
+          <p>Drag the frequency vector to see how a complex exponential becomes a visible stripe pattern.</p>
+        </div>
+
+        <div class="basis-grid">
+          <aside class="control-panel card">
+            <div class="panel-title"><span class="status-dot"></span> Parameters <button id="resetBasis" class="text-btn">Reset</button></div>
+            <label class="control"><span>Horizontal frequency <b>u = <output id="uOut">3</output></b></span><input id="uRange" type="range" min="-8" max="8" value="3" step="1" /></label>
+            <label class="control"><span>Vertical frequency <b>v = <output id="vOut">2</output></b></span><input id="vRange" type="range" min="-8" max="8" value="2" step="1" /></label>
+            <label class="control"><span>Phase <b>φ = <output id="phaseOut">0°</output></b></span><input id="phaseRange" type="range" min="0" max="360" value="0" step="1" /></label>
+            <div class="segmented" role="group" aria-label="Component selection">
+              <button class="seg active" data-component="real">Real</button>
+              <button class="seg" data-component="imag">Imaginary</button>
+              <button class="seg" data-component="phase">Phase</button>
+            </div>
+            <div class="formula-box">
+              <span>a<sub>u,v</sub>(x,y) =</span>
+              <strong>e<sup>j[2π(ux/M + vy/N) + φ]</sup></strong>
+            </div>
+            <div class="metric-row"><div><small>RADIAL FREQ.</small><b id="radialMetric">3.61</b></div><div><small>STRIPE ANGLE</small><b id="angleMetric">56.3°</b></div></div>
+          </aside>
+
+          <div class="visual-stage card">
+            <div class="canvas-head"><div><span class="badge" id="componentBadge">REAL COMPONENT</span><h2 id="basisLabel">cos[2π(3x/M + 2y/N)]</h2></div><span class="grid-size">32 × 32 GRID</span></div>
+            <canvas id="basisCanvas" width="640" height="480" aria-label="Basis function image"></canvas>
+            <div class="vector-note"><span class="vector-arrow">↗</span><span><small>FREQUENCY VECTOR</small><b id="vectorText">(u, v) = (3, 2)</b></span><p id="orientationText">Variation direction 33.7° · stripes are perpendicular</p></div>
+          </div>
+
+          <aside class="frequency-map card">
+            <div class="panel-title">Frequency map <span class="hint">CLICK OR DRAG</span></div>
+            <canvas id="frequencyCanvas" width="360" height="360" aria-label="u-v frequency plane"></canvas>
+            <div class="map-legend"><span><i class="dot cyan"></i>selected (u,v)</span><span><i class="dot amber"></i>conjugate (-u,-v)</span></div>
+            <div class="insight"><b>KEY INTUITION</b><p>The frequency vector points in the direction of fastest intensity change, so the visible stripes are always perpendicular to it.</p></div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="spectrum" class="lab-section" aria-labelledby="spectrum-title">
+        <div class="section-heading"><div><span class="eyebrow">EXPERIMENT 02</span><h1 id="spectrum-title">Spectrum Mixer</h1></div><p>Add conjugate pairs of complex coefficients and observe how basis images combine into a spatial pattern.</p></div>
+        <div class="mixer-grid">
+          <aside class="control-panel card">
+            <div class="panel-title"><span class="status-dot"></span>Coefficient brush <button id="clearMixer" class="text-btn">Clear</button></div>
+            <label class="control"><span>Amplitude <b>A = <output id="ampOut">1.00</output></b></span><input id="ampRange" type="range" min="0" max="2" value="1" step="0.05" /></label>
+            <label class="control"><span>Phase <b>φ = <output id="mixPhaseOut">0°</output></b></span><input id="mixPhaseRange" type="range" min="0" max="360" value="0" step="1" /></label>
+            <p class="microcopy">Click the spectrum on the right to add a coefficient. Its conjugate automatically appears so that the reconstruction remains real-valued.</p>
+            <div class="preset-stack"><small>TRY A PATTERN</small><button class="preset-btn" data-preset="vertical">Vertical stripes <span>(4, 0)</span></button><button class="preset-btn" data-preset="diagonal">Diagonal texture <span>(3, 3)</span></button><button class="preset-btn" data-preset="grid">Cross grid <span>4 coefficients</span></button><button class="preset-btn" data-preset="texture">Composite texture <span>8 coefficients</span></button></div>
+            <div class="formula-box"><span>real image contribution</span><strong>2A cos[2π(ux/M + vy/N) + φ]</strong></div>
+          </aside>
+          <div class="mixer-stage card">
+            <div class="canvas-head"><div><span class="badge">SYNTHESIS / IFFT</span><h2 id="mixCount">0 coefficient pairs</h2></div><button id="playBuild" class="play-btn">▶ Build animation</button></div>
+            <canvas id="reconCanvas" width="600" height="600" aria-label="Image reconstructed from frequency components"></canvas>
+            <div class="signal-strip"><canvas id="waveCanvas" width="600" height="100" aria-label="Center-row cross section of the reconstructed image"></canvas><span>center-row signal</span></div>
+          </div>
+          <aside class="frequency-map card mixer-map"><div class="panel-title">Editable spectrum <span class="hint">CLICK TO ADD</span></div><canvas id="mixerFreqCanvas" width="360" height="360" aria-label="Editable spectrum"></canvas><div id="coefficientList" class="coefficient-list"><div class="empty-state">No frequencies yet</div></div></aside>
+        </div>
+      </section>
+      <section id="filter" class="lab-section" aria-labelledby="filter-title">
+        <div class="section-heading"><div><span class="eyebrow">EXPERIMENT 03</span><h1 id="filter-title">Filter Studio</h1></div><p>Multiply the spectrum by a visible mask to compare low-frequency structure, high-frequency detail, and ringing in real time.</p></div>
+        <div class="filter-controls card">
+          <div class="filter-types" role="group" aria-label="Filter type"><button class="filter-type active" data-filter="ideal-low">Ideal low-pass</button><button class="filter-type" data-filter="gaussian-low">Gaussian low-pass</button><button class="filter-type" data-filter="ideal-high">Ideal high-pass</button><button class="filter-type" data-filter="gaussian-high">Gaussian high-pass</button><button class="filter-type" data-filter="band-pass">Band-pass</button></div>
+          <label class="inline-control"><span>Cutoff D₀ <b><output id="cutoffOut">20</output></b></span><input id="cutoffRange" type="range" min="2" max="128" value="20" step="2" /></label>
+          <label class="upload-btn">Upload image<input id="imageUpload" type="file" accept="image/*" hidden /></label>
+          <button id="resetImage" class="text-btn">Use test image</button>
+          <span id="filterResolution" class="resolution-badge">256 × 256 FFT</span>
+        </div>
+        <div class="pipeline">
+          <figure class="image-card card"><div class="figure-label"><span>01</span><b>Spatial image</b><small>256×256 f(x,y)</small></div><canvas id="sourceCanvas" width="256" height="256"></canvas></figure>
+          <div class="pipeline-arrow">→<span>DFT</span></div>
+          <figure class="image-card card"><div class="figure-label"><span>02</span><b>Log spectrum</b><small>log |F(u,v)|</small></div><canvas id="sourceSpectrumCanvas" width="256" height="256"></canvas></figure>
+          <div class="pipeline-arrow multiply">×<span>H(u,v)</span></div>
+          <figure class="image-card card"><div class="figure-label"><span>03</span><b>Frequency mask</b><small id="maskLabel">ideal LPF</small></div><canvas id="maskCanvas" width="256" height="256"></canvas></figure>
+          <div class="pipeline-arrow">→<span>IDFT</span></div>
+          <figure class="image-card card result-card"><div class="figure-label"><span>04</span><b>Filtered result</b><small id="resultModeLabel">256×256 g(x,y)</small></div><canvas id="resultCanvas" width="256" height="256"></canvas></figure>
+        </div>
+        <div class="explanation-bar card"><div><span class="status-dot"></span><b id="filterInsightTitle">Hard cutoff → ringing</b></div><p id="filterInsight">An ideal low-pass filter has an abrupt frequency boundary. Its spatial counterpart is a sinc with side lobes, so ringing appears near edges. Switch to Gaussian to see the improvement.</p></div>
+      </section>
+
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
